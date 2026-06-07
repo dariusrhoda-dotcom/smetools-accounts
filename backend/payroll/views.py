@@ -1,63 +1,24 @@
-from django.db.models import Sum, Count
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from django.http import FileResponse
-import os
-from .utils import generate_payslip_pdf
+from rest_framework.permissions import AllowAny
+from django.http import HttpResponse
 from .models import (
     Organization, Employee, TaxYear, PAYEBracket, TaxRebate,
-    MedicalCredit, TaxThreshold, UIFConfig, PayrollRun, Payslip, PayslipItem,
-    SDLConfig, ETIConfig
+    MedicalCredit, TaxThreshold, UIFConfig, SDLConfig, PayrollRun, Payslip, PayslipItem
 )
 from .serializers import (
     OrganizationSerializer, EmployeeSerializer, TaxYearSerializer,
     PAYEBracketSerializer, TaxRebateSerializer, MedicalCreditSerializer,
-    TaxThresholdSerializer, UIFConfigSerializer, PayrollRunSerializer,
-    PayslipSerializer, PayslipItemSerializer, SDLConfigSerializer,
-    ETIConfigSerializer
+    TaxThresholdSerializer, UIFConfigSerializer, SDLConfigSerializer, PayrollRunSerializer,
+    PayslipSerializer, PayslipItemSerializer
 )
+from .utils import generate_payslip_pdf
+import os
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
-
-    @action(detail=True, methods=['get'])
-    def stats(self, request, pk=None):
-        org = self.get_object()
-        employee_count = Employee.objects.filter(organization=org, status='active').count()
-        
-        # Monthly totals (current month)
-        from django.utils import timezone
-        now = timezone.now()
-        
-        latest_runs = PayrollRun.objects.filter(
-            organization=org, 
-            period_month=now.month, 
-            period_year=now.year,
-            status='finalized'
-        )
-        
-        total_paye = Payslip.objects.filter(payroll_run__in=latest_runs).aggregate(Sum('paye'))['paye__sum'] or 0
-        total_net = Payslip.objects.filter(payroll_run__in=latest_runs).aggregate(Sum('net_pay'))['net_pay__sum'] or 0
-        
-        # Recent runs
-        recent_runs = PayrollRun.objects.filter(organization=org).order_by('-period_year', '-period_month')[:5]
-        recent_runs_data = [
-            {
-                'id': run.id,
-                'period': f"{run.period_month}/{run.period_year}",
-                'status': run.status,
-                'employee_count': Payslip.objects.filter(payroll_run=run).count()
-            } for run in recent_runs
-        ]
-
-        return Response({
-            'employee_count': employee_count,
-            'total_paye_mtd': total_paye,
-            'total_net_mtd': total_net,
-            'recent_runs': recent_runs_data
-        })
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
@@ -94,6 +55,10 @@ class UIFConfigViewSet(viewsets.ModelViewSet):
     queryset = UIFConfig.objects.all()
     serializer_class = UIFConfigSerializer
 
+class SDLConfigViewSet(viewsets.ModelViewSet):
+    queryset = SDLConfig.objects.all()
+    serializer_class = SDLConfigSerializer
+
 class PayrollRunViewSet(viewsets.ModelViewSet):
     queryset = PayrollRun.objects.all()
     serializer_class = PayrollRunSerializer
@@ -104,6 +69,17 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
         if organization_id is not None:
             queryset = queryset.filter(organization_id=organization_id)
         return queryset
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'finalized':
+            # Increment ETI months for employees in this run
+            payslips = instance.payslips.all()
+            for payslip in payslips:
+                if payslip.eti > 0:
+                    employee = payslip.employee
+                    employee.eti_months_claimed += 1
+                    employee.save()
 
 class PayslipViewSet(viewsets.ModelViewSet):
     queryset = Payslip.objects.all()
@@ -119,23 +95,31 @@ class PayslipViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):
         payslip = self.get_object()
-        try:
-            file_path = generate_payslip_pdf(payslip)
-            if os.path.exists(file_path):
-                return FileResponse(open(file_path, 'rb'), content_type='application/pdf')
-            else:
-                return Response({"error": "PDF file not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        pdf_path = generate_payslip_pdf(payslip)
+        
+        if pdf_path and os.path.exists(pdf_path):
+            with open(pdf_path, 'rb') as f:
+                response = HttpResponse(f.read(), content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="payslip_{payslip.employee.employee_code}_{payslip.payroll_run.period_year}_{payslip.payroll_run.period_month}.pdf"'
+                return response
+        else:
+            return Response({"error": "Failed to generate PDF"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PayslipItemViewSet(viewsets.ModelViewSet):
     queryset = PayslipItem.objects.all()
     serializer_class = PayslipItemSerializer
 
-class SDLConfigViewSet(viewsets.ModelViewSet):
-    queryset = SDLConfig.objects.all()
-    serializer_class = SDLConfigSerializer
-
-class ETIConfigViewSet(viewsets.ModelViewSet):
-    queryset = ETIConfig.objects.all()
-    serializer_class = ETIConfigSerializer
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_root(request):
+    return Response({
+        "name": "SMETools Payroll API",
+        "version": "1.0.0",
+        "documentation": request.build_absolute_uri('/api/docs/'),
+        "endpoints": {
+            "organizations": request.build_absolute_uri('/api/organizations/'),
+            "employees": request.build_absolute_uri('/api/employees/'),
+            "payroll-runs": request.build_absolute_uri('/api/payroll-runs/'),
+            "payslips": request.build_absolute_uri('/api/payslips/'),
+        }
+    })
