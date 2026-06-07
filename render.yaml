@@ -17,7 +17,7 @@ services:
     name: smetools-api
     env: docker
     dockerContext: .
-    dockerfilePath: backend/Dockerfile
+    dockerfilePath: Dockerfile
     plan: free
     envVars:
       - key: DATABASE_URL
@@ -34,13 +34,15 @@ services:
         generateValue: true
       - key: DEBUG
         value: "False"
+      - key: PORT
+        value: "10000"
 
   # 4. Celery Worker (The AI & Payroll Processor)
   - type: worker
     name: smetools-worker
     env: docker
     dockerContext: .
-    dockerfilePath: backend/Dockerfile
+    dockerfilePath: Dockerfile
     plan: free
     command: celery -A smetools_payroll_backend worker -l info
     envVars:

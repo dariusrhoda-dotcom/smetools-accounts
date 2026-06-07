@@ -4,6 +4,7 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV PORT 10000
 
 # Install system dependencies for WeasyPrint and PostgreSQL
 RUN apt-get update && apt-get install -y \
@@ -26,17 +27,18 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Install Python dependencies
+# Note: dockerContext is root, so we look in backend/
 COPY backend/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# Copy the rest of the application code from the backend folder
 COPY backend/ /app/
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Expose the port the app runs on
-EXPOSE 8000
+# Expose the port (Render uses $PORT, defaults to 10000)
+EXPOSE 10000
 
-# Start Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "smetools_payroll_backend.wsgi:application"]
+# Start Gunicorn binding to the dynamic port
+CMD gunicorn --bind 0.0.0.0:$PORT smetools_payroll_backend.wsgi:application
