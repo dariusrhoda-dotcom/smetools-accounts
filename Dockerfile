@@ -35,7 +35,7 @@ COPY backend/ /app/
 ARG SECRET_KEY=dummy
 ENV SECRET_KEY=$SECRET_KEY
 ENV DATABASE_URL=sqlite:///:memory:
-ENV DEBUG=False
+ENV DJANGO_DEBUG=False
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
@@ -43,5 +43,5 @@ RUN python manage.py collectstatic --noinput
 # Expose the port
 EXPOSE 10000
 
-# Start Gunicorn
+# Start Gunicorn binding to the dynamic port
 CMD gunicorn --bind 0.0.0.0:$PORT smetools_payroll_backend.wsgi:application
