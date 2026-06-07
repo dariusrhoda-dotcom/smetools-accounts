@@ -1,14 +1,15 @@
-# Use the full Bookworm image for better build reliability
-FROM python:3.11-bookworm
+# Use the full Bullseye image for better build reliability and compatibility on Render
+FROM python:3.11-bullseye
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 ENV PORT 10000
 
-# Install only the essential system libraries for WeasyPrint and PostgreSQL
-# The full 'bookworm' image already contains build-essential and python3-dev
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Harden apt-get process and install dependencies
+# We ensure update and install are joined with && to avoid using stale cache layers.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     libpq-dev \
     libcairo2 \
     libpango-1.0-0 \
@@ -16,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdk-pixbuf2.0-0 \
     libffi-dev \
     shared-mime-info \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
