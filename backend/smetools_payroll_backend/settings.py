@@ -23,10 +23,10 @@ import os
 import dj_database_url
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-#-h&tl^tzvr6%93ct9djjgp1h_*&lr1lo7+%47#bpjm$7+23br')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'django-insecure-#-h&tl^tzvr6%93ct9djjgp1h_*&lr1lo7+%47#bpjm$7+23br'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
+DEBUG = (os.environ.get('DJANGO_DEBUG') or os.environ.get('DEBUG') or 'False').lower() == 'true'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
