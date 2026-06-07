@@ -32,8 +32,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY backend/ /app/
 
 # Provide dummy environment variables for collectstatic during build
-ARG SECRET_KEY=dummy
-ENV SECRET_KEY=$SECRET_KEY
+# Using DJANGO_ prefix to match settings.py expectations
+ARG DJANGO_SECRET_KEY=dummy
+ENV DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY
 ENV DATABASE_URL=sqlite:///:memory:
 ENV DJANGO_DEBUG=False
 
