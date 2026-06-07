@@ -16,8 +16,8 @@ services:
   - type: web
     name: smetools-api
     env: docker
-    dockerContext: ./backend
-    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
     plan: free
     envVars:
       - key: DATABASE_URL
@@ -39,8 +39,8 @@ services:
   - type: worker
     name: smetools-worker
     env: docker
-    dockerContext: ./backend
-    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
     plan: free
     command: celery -A smetools_payroll_backend worker -l info
     envVars:
