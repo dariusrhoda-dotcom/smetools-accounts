@@ -1,0 +1,15 @@
+venv/
+*.pyc
+__pycache__/
+db.sqlite3
+media/
+static/
+.env
+.vscode/
+.cache/
+.agents/
+.cto/
+.team/
+.local/
+django.log
+nohup.out

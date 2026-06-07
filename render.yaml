@@ -1,0 +1,70 @@
+services:
+  # 1. The PostgreSQL Database
+  - type: database
+    name: smetools-db
+    databaseName: smetools_payroll
+    user: smetools_user
+    plan: free
+
+  # 2. Redis for Celery & AI Assistant
+  - type: redis
+    name: smetools-cache
+    plan: free
+    ipAllowList: [] # Only allow internal traffic
+
+  # 3. The Django Backend API
+  - type: web
+    name: smetools-api
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smetools-db
+          property: connectionString
+      - key: REDIS_URL
+        fromStack:
+          name: smetools-cache
+          property: connectionString
+      - key: DJANGO_SETTINGS_MODULE
+        value: smetools_payroll_backend.settings
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+
+  # 4. Celery Worker (The AI & Payroll Processor)
+  - type: worker
+    name: smetools-worker
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    command: celery -A smetools_payroll_backend worker -l info
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smetools-db
+          property: connectionString
+      - key: REDIS_URL
+        fromStack:
+          name: smetools-cache
+          property: connectionString
+
+  # 5. The React Frontend (Static Site)
+  - type: static
+    name: smetools-dashboard
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    plan: free
+    routingRules:
+      - route: /*
+        rewritePath: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromStack:
+          name: smetools-api
+          property: url
