@@ -31,6 +31,12 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy the rest of the application code from the backend folder
 COPY backend/ /app/
 
+# Provide dummy environment variables for collectstatic during build
+ARG SECRET_KEY=dummy
+ENV SECRET_KEY=$SECRET_KEY
+ENV DATABASE_URL=sqlite:///:memory:
+ENV DEBUG=False
+
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
